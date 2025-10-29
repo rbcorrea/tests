@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculadora de Equilíbrio de ATK (% vs Absoluto)</title>
+  <style>
+    :root { --bg:#0b1020; --panel:#121935; --muted:#96a2d1; --text:#e9edff; --brand:#6aa3ff; --brand2:#9bffcf; --warn:#ffc46a; }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:linear-gradient(180deg,#0b1020 0%,#0f1530 100%); color:var(--text)}
+    header{padding:24px 20px; text-align:center}
+    header h1{margin:0; font-size:clamp(20px,3vw,28px)}
+    header p{margin:8px 0 0; color:var(--muted)}
+    .wrap{max-width:1100px; margin:0 auto; padding:20px}
+    .grid{display:grid; gap:16px}
+    @media(min-width:960px){ .grid{grid-template-columns:1.2fr 1fr} }
+    .card{background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .card h2{font-size:18px; letter-spacing:.2px; margin:0 0 12px}
+    .card .body{padding:16px}
+    label{display:block; font-size:12px; color:var(--muted); margin:8px 0 6px}
+    input,textarea{width:100%; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.03); color:var(--text); padding:10px 12px; border-radius:12px; outline:none}
+    input:focus,textarea:focus{border-color:var(--brand)}
+    .row{display:grid; gap:10px; grid-template-columns:repeat(12,1fr)}
+    .col-6{grid-column:span 6} .col-4{grid-column:span 4} .col-3{grid-column:span 3} .col-12{grid-column:span 12}
+    .hint{font-size:12px; color:var(--muted); margin-top:6px}
+    .pill{display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); font-size:12px}
+    .stat{display:grid; gap:12px; grid-template-columns:repeat(3,1fr)}
+    .stat .kpi{background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); padding:12px 14px; border-radius:12px}
+    .kpi b{font-size:18px}
+    canvas{width:100%; height:360px; display:block}
+    table{width:100%; border-collapse:collapse}
+    th,td{padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.08); text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    .legend{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0}
+    .badge{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); font-size:12px}
+    .dot{width:10px; height:10px; border-radius:50%}
+    .footer{color:var(--muted); font-size:12px; text-align:center; margin:20px 0 40px}
+    .btn{cursor:pointer; padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:var(--text)}
+    .btn:hover{border-color:var(--brand)}
+    .inline{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+    .ok{color:var(--brand2)} .warn{color:var(--warn)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Calculadora de Equilíbrio de ATK — % vs Absoluto</h1>
+    <p>Descubra quando um bônus percentual supera um bônus absoluto (e vice‑versa). Fórmula: <code>a = (p × Base)/100</code></p>
+  </header>
+
+  <div class="wrap grid">
+    <section class="card">
+      <div class="body">
+        <h2>Parâmetros</h2>
+        <div class="row">
+          <div class="col-4">
+            <label>ATK Base</label>
+            <input id="base" type="number" min="0" step="1" value="296" />
+            <div class="hint">Valor base do seu ATK (sem itens)</div>
+          </div>
+          <div class="col-4">
+            <label>Máx. do eixo X (gráfico)</label>
+            <input id="xmax" type="number" min="100" step="50" value="1000" />
+            <div class="hint">Alcance de Base no gráfico</div>
+          </div>
+          <div class="col-4">
+            <label>Resolução (pontos)</label>
+            <input id="res" type="number" min="50" step="50" value="400" />
+            <div class="hint">Mais pontos = linha mais suave</div>
+          </div>
+          <div class="col-12">
+            <label>Bônus percentuais p (%) — separados por vírgula</label>
+            <input id="plist" value="10,12,15,20,25" />
+            <div class="hint">Ex.: 10,12.5,15</div>
+          </div>
+          <div class="col-12">
+            <label>Bônus absolutos a — separados por vírgula</label>
+            <input id="alist" value="30,50,80,120,200" />
+            <div class="hint">Ex.: 30,50,120</div>
+          </div>
+        </div>
+        <div class="inline" style="margin-top:12px">
+          <button class="btn" id="share">Gerar link compartilhável</button>
+          <span id="sharemsg" class="hint"></span>
+        </div>
+        <div class="stat" style="margin-top:14px">
+          <div class="kpi"><div>Equivalência de 1% em <span class="pill">Base atual</span></div><b id="onePct">—</b><div class="hint">Valor absoluto que 1% representa</div></div>
+          <div class="kpi"><div>Melhor tipo em <span class="pill">Base atual</span></div><b id="bestNow">—</b><div class="hint">Comparando maior a vs maior p</div></div>
+          <div class="kpi"><div>Interseções visíveis</div><b id="crossCount">—</b><div class="hint">Pares (p,a) que cruzam no gráfico</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="body">
+        <h2>Gráfico</h2>
+        <div class="legend" id="legend"></div>
+        <canvas id="chart" width="900" height="360" aria-label="Gráfico de equilíbrio"></canvas>
+      </div>
+    </section>
+
+    <section class="card" style="grid-column:1/-1">
+      <div class="body">
+        <h2>Tabelas de equivalência</h2>
+        <div class="row">
+          <div class="col-6">
+            <h3>Percentual → Absoluto (para Base atual)</h3>
+            <table id="tblP"></table>
+          </div>
+          <div class="col-6">
+            <h3>Absoluto → Percentual (para Base atual)</h3>
+            <table id="tblA"></table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="footer">Dica: o ponto de equilíbrio entre um par (p, a) ocorre em <code>Base* = 100·a / p</code>. Se a sua Base &gt; Base*, prefira o bônus percentual; caso contrário, o absoluto.</div>
+
+<script>
+(function(){
+  const $ = (id)=>document.getElementById(id);
+  const baseEl = $('base'), xmaxEl = $('xmax'), resEl = $('res');
+  const plistEl = $('plist'), alistEl = $('alist');
+  const chart = $('chart'), ctx = chart.getContext('2d');
+  const legend = $('legend');
+  const tblP = $('tblP'), tblA = $('tblA');
+  const onePct = $('onePct'), bestNow = $('bestNow'), crossCount = $('crossCount');
+  const shareBtn = $('share'), shareMsg = $('sharemsg');
+
+  const palette = (i)=>{
+    // simple distinct hues
+    const hues = [210, 140, 20, 280, 340, 80, 0, 180, 260, 40];
+    const h = hues[i % hues.length];
+    return {
+      line: `hsl(${h} 80% 60%)`,
+      faint: `hsl(${h} 70% 60% / .18)`
+    };
+  };
+
+  function parseList(str){
+    return (str||'')
+      .split(/[;,\s]+/)
+      .map(s=>s.replace(',', '.'))
+      .map(Number)
+      .filter(v=>Number.isFinite(v) && v>0)
+      .slice(0, 64);
+  }
+
+  function format(n){
+    return (Math.round((n + Number.EPSILON)*100)/100).toLocaleString('pt-BR', {maximumFractionDigits:2});
+  }
+
+  function draw(){
+    const B = Math.max(0, +baseEl.value||0);
+    const XMAX = Math.max(50, +xmaxEl.value||1000);
+    const RES = Math.max(50, +resEl.value||200);
+    const P = parseList(plistEl.value);
+    const A = parseList(alistEl.value);
+
+    // KPIs
+    onePct.textContent = format(B/100);
+    if(P.length && A.length){
+      const pMax = Math.max(...P), aMax = Math.max(...A);
+      const absFromPmax = B * (pMax/100);
+      bestNow.innerHTML = absFromPmax > aMax ? `<span class="ok">Percentual</span>` : (absFromPmax < aMax ? `<span class="warn">Absoluto</span>` : 'Empate');
+    } else bestNow.textContent = '—';
+
+    // Canvas setup
+    const W = chart.width, H = chart.height;
+    ctx.clearRect(0,0,W,H);
+
+    // Padding
+    const padL = 50, padR = 20, padT = 10, padB = 36;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+
+    // scales
+    const x2px = x=> padL + (x/XMAX)*innerW;
+    // auto y max from lines and horizontals at XMAX
+    const ymaxLines = P.length ? Math.max(...P.map(p=> (p/100)*XMAX )) : 0;
+    const ymaxH = A.length ? Math.max(...A) : 0;
+    const YMAX = Math.max(ymaxLines, ymaxH, B*0.5, 10); // keep some room
+    const y2px = y=> padT + innerH - (y/YMAX)*innerH;
+
+    // grid
+    ctx.lineWidth=1; ctx.strokeStyle='rgba(255,255,255,.12)';
+    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font='12px system-ui, -apple-system, Segoe UI, Roboto';
+    // axes
+    ctx.beginPath();
+    ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+innerH); ctx.lineTo(padL+innerW, padT+innerH);
+    ctx.stroke();
+
+    // ticks & labels
+    const xticks = 6, yticks = 5;
+    for(let i=0;i<=xticks;i++){
+      const x = (i/xticks)*XMAX; const px=x2px(x);
+      ctx.strokeStyle='rgba(255,255,255,.08)';
+      ctx.beginPath(); ctx.moveTo(px, padT); ctx.lineTo(px, padT+innerH); ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,.6)';
+      ctx.textAlign='center'; ctx.fillText(format(x), px, padT+innerH+16);
+    }
+    for(let i=0;i<=yticks;i++){
+      const y = (i/yticks)*YMAX; const py=y2px(y);
+      ctx.strokeStyle='rgba(255,255,255,.08)';
+      ctx.beginPath(); ctx.moveTo(padL, py); ctx.lineTo(padL+innerW, py); ctx.stroke();
+      ctx.textAlign='right'; ctx.fillStyle='rgba(255,255,255,.6)';
+      ctx.fillText(format(y), padL-6, py+4);
+    }
+
+    // draw % lines
+    legend.innerHTML='';
+    let crosses=0;
+
+    P.forEach((p,i)=>{
+      const col = palette(i);
+      ctx.lineWidth=2; ctx.strokeStyle=col.line; ctx.beginPath();
+      for(let k=0;k<=RES;k++){
+        const x = (k/RES)*XMAX; const y = (p/100)*x;
+        const px=x2px(x), py=y2px(y);
+        if(k===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+      }
+      ctx.stroke();
+      // legend entry
+      const tag = document.createElement('span'); tag.className='badge';
+      const dot = document.createElement('span'); dot.className='dot'; dot.style.background=col.line; tag.appendChild(dot);
+      tag.appendChild(document.createTextNode(` p = ${p}%`)); legend.appendChild(tag);
+    });
+
+    // draw horizontal lines for absolutes and compute intersections
+    A.forEach((a,j)=>{
+      const col = palette(j+P.length);
+      const y=a; const py=y2px(y);
+      ctx.strokeStyle=col.faint; ctx.lineWidth=10; ctx.beginPath();
+      ctx.moveTo(x2px(0), py); ctx.lineTo(x2px(XMAX), py); ctx.stroke();
+      ctx.strokeStyle=col.line; ctx.lineWidth=2; ctx.beginPath();
+      ctx.moveTo(x2px(0), py); ctx.lineTo(x2px(XMAX), py); ctx.stroke();
+
+      // legend entry
+      const tag = document.createElement('span'); tag.className='badge';
+      const dot = document.createElement('span'); dot.className='dot'; dot.style.background=col.line; tag.appendChild(dot);
+      tag.appendChild(document.createTextNode(` a = ${format(a)}`)); legend.appendChild(tag);
+
+      // intersections with each percentage line
+      P.forEach((p)=>{
+        const xCross = (100*a)/p; // Base*
+        if(xCross>=0 && xCross<=XMAX){
+          crosses++;
+          const px=x2px(xCross), py=y2px(a);
+          // point
+          ctx.fillStyle= 'white';
+          ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill();
+          // label
+          ctx.fillStyle='rgba(255,255,255,.85)'; ctx.textAlign='left';
+          ctx.fillText(`Base* ${format(xCross)}`, px+6, py-6);
+        }
+      });
+    });
+
+    crossCount.textContent = crosses ? String(crosses) : '0';
+
+    // tables
+    tblP.innerHTML = `<tr><th>p (%)</th><th>Equivalente a (Base=${format(B)})</th><th>Decisão</th></tr>` +
+      P.map(p=>{
+        const a = (p*B)/100; const better = betterNow(B, p, A);
+        return `<tr><td>${format(p)}</td><td>${format(a)}</td><td>${better === 'percent' ? 'Percentual' : better === 'absolute' ? 'Absoluto' : '–'}</td></tr>`;
+      }).join('');
+
+    tblA.innerHTML = `<tr><th>a</th><th>Equivalente p% (Base=${format(B)})</th><th>Decisão</th></tr>` +
+      A.map(a=>{
+        const p = (100*a)/B; const better = betterNow(B, P, a);
+        return `<tr><td>${format(a)}</td><td>${format(p)}</td><td>${better === 'percent' ? 'Percentual' : better === 'absolute' ? 'Absoluto' : '–'}</td></tr>`;
+      }).join('');
+  }
+
+  function betterNow(B, pOrPList, aOrAList){
+    // Flexible: if pOrPList is number, compare that % with max(aList); if list, compare max(pList) with a number
+    if(typeof pOrPList === 'number'){
+      const p = pOrPList; const aMax = Array.isArray(aOrAList) ? Math.max(...aOrAList) : +aOrAList;
+      const incP = B*(p/100); return incP === aMax ? 'tie' : (incP > aMax ? 'percent' : 'absolute');
+    } else {
+      const pMax = Math.max(...pOrPList); const a = +aOrAList;
+      const incP = B*(pMax/100); return incP === a ? 'tie' : (incP > a ? 'percent' : 'absolute');
+    }
+  }
+
+  function serialize(){
+    const params = new URLSearchParams({
+      base: baseEl.value, xmax: xmaxEl.value, res: resEl.value,
+      p: parseList(plistEl.value).join(','), a: parseList(alistEl.value).join(',')
+    });
+    return params.toString();
+  }
+
+  function deserialize(){
+    const q = new URLSearchParams(location.hash.replace(/^#/, ''));
+    if(q.size===0) return;
+    baseEl.value = q.get('base') ?? baseEl.value;
+    xmaxEl.value = q.get('xmax') ?? xmaxEl.value;
+    resEl.value = q.get('res') ?? resEl.value;
+    plistEl.value = q.get('p') ?? plistEl.value;
+    alistEl.value = q.get('a') ?? alistEl.value;
+  }
+
+  // events
+  [baseEl, xmaxEl, resEl, plistEl, alistEl].forEach(el=> el.addEventListener('input', ()=>{ draw(); location.hash = serialize(); }));
+  shareBtn.addEventListener('click', async ()=>{
+    const url = location.origin+location.pathname + '#' + serialize();
+    try{
+      await navigator.clipboard.writeText(url);
+      shareMsg.textContent = 'Link copiado para a área de transferência!';
+    }catch{
+      shareMsg.textContent = 'Não foi possível copiar automaticamente. Copie o URL do navegador.';
+    }
+    setTimeout(()=>shareMsg.textContent='', 3500);
+  });
+
+  // init
+  deserialize();
+  draw();
+})();
+</script>
+</body>
+</html>
